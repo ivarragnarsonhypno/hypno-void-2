@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Trance Terminal v4.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050011;
+            color: #0ff;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        canvas {
+            display: block;
+        }
+        
+        /* CRT / Glitch Effects */
+        .crt-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .vignette {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.8) 100%);
+            pointer-events: none;
+            z-index: 19;
+        }
+
+        /* UI Styling */
+        .controls-overlay {
+            position: absolute;
+            bottom: 30px; 
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 20, 0.9);
+            border: 1px solid #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 255, 255, 0.05);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 4px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            max-width: 90vw;
+            width: 460px;
+            z-index: 30;
+        }
+        
+        .controls-overlay::before {
+            content: "SYSTEM_CONTROLS_V4.0";
+            position: absolute;
+            top: -10px;
+            left: 10px;
+            background: #050011;
+            padding: 0 5px;
+            font-size: 10px;
+            color: #0ff;
+            border: 1px solid #0ff;
+        }
+
+        .hidden-ui {
+            opacity: 0;
+            transform: translate(-50%, 40px);
+            pointer-events: none;
+        }
+
+        /* Custom Range Inputs */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 10px;
+            background: #0ff;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px #0ff;
+            border: 1px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #1a1a3a;
+            border: 1px solid #004444;
+        }
+
+        /* Buttons */
+        .cmd-btn {
+            @apply flex-1 py-2 px-1 text-[10px] tracking-widest font-bold border border-cyan-900 bg-black text-cyan-500 hover:bg-cyan-500 hover:text-black transition-all duration-200 uppercase;
+            box-shadow: 0 0 5px rgba(0,255,255,0.1);
+        }
+        .cmd-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Word Layer */
+        .word-layer {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+            perspective: 1000px;
+        }
+        .word-active {
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: scale(0.5) rotateX(90deg);
+            filter: blur(10px);
+            text-shadow: 2px 2px 0px #f0f, -2px -2px 0px #0ff;
+        }
+        .word-visible {
+            opacity: 0.9;
+            transform: scale(1.2) rotateX(0deg);
+            filter: blur(0px);
+        }
+
+        /* Modal */
+        .modal-bg {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 1s ease;
+        }
+        
+        .glitch-text {
+            position: relative;
+        }
+        .glitch-text::before, .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .glitch-text::before {
+            left: 2px;
+            text-shadow: -1px 0 #f0f;
+            animation: glitch-anim-1 2s infinite linear alternate-reverse;
+        }
+        .glitch-text::after {
+            left: -2px;
+            text-shadow: -1px 0 #0ff;
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+        @keyframes glitch-anim-1 {
+            0% { clip-path: inset(20% 0 80% 0); }
+            20% { clip-path: inset(60% 0 10% 0); }
+            40% { clip-path: inset(40% 0 50% 0); }
+            60% { clip-path: inset(80% 0 5% 0); }
+            80% { clip-path: inset(10% 0 60% 0); }
+            100% { clip-path: inset(30% 0 30% 0); }
+        }
+        @keyframes glitch-anim-2 {
+            0% { clip-path: inset(10% 0 60% 0); }
+            20% { clip-path: inset(30% 0 20% 0); }
+            40% { clip-path: inset(70% 0 10% 0); }
+            60% { clip-path: inset(20% 0 50% 0); }
+            80% { clip-path: inset(50% 0 30% 0); }
+            100% { clip-path: inset(10% 0 80% 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div class="vignette"></div>
+
+    <div class="word-layer">
+        <h2 id="hypnoWord" class="word-active text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-cyan-500 tracking-widest uppercase"></h2>
+    </div>
+
+    <div id="startModal" class="modal-bg">
+        <div class="text-center p-8 border border-cyan-500/30 bg-black/80 backdrop-blur-md shadow-[0_0_50px_rgba(0,255,255,0.2)]">
+            <h1 class="text-7xl font-bold mb-4 tracking-tighter text-white glitch-text" data-text="SYSTEM_LINK">SYSTEM_LINK</h1>
+            <div class="w-full h-px bg-cyan-500 mb-6 shadow-[0_0_10px_#0ff]"></div>
+            <p class="mb-10 text-cyan-300 text-sm uppercase tracking-[0.4em] font-light">Neural Interface Ready for Connection</p>
+            <button onclick="startExperience()" class="px-12 py-4 bg-transparent border border-cyan-400 text-cyan-400 font-bold text-lg tracking-widest hover:bg-cyan-400 hover:text-black hover:shadow-[0_0_30px_#0ff] transition-all duration-300">
+                [ INITIATE ]
+            </button>
+        </div>
+    </div>
+
+    <canvas id="spiralCanvas"></canvas>
+
+    <div id="controls" class="controls-overlay hidden-ui">
+        <div class="flex gap-2 mb-6">
+            <button class="cmd-btn" onclick="setPreset(2, 0.005, 1.2)">Drift</button>
+            <button class="cmd-btn" onclick="setPreset(6, 0.015, 2.0)">Sync</button>
+            <button class="cmd-btn" onclick="setPreset(14, 0.03, 3.5)">Overdrive</button>
+            <button class="cmd-btn" onclick="setPreset(30, 0.05, 5.0)">Crash</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-x-8 gap-y-6">
+            <div class="space-y-2">
+                <div class="flex justify-between text-[10px] text-cyan-400 uppercase tracking-widest">
+                    <span>Rotation_Vel</span>
+                    <span id="speedVal" class="text-white">0.010</span>
+                </div>
+                <input type="range" id="speedRange" min="-0.05" max="0.05" step="0.001" value="0.015">
+                
+                <div class="flex justify-between text-[10px] text-cyan-400 uppercase tracking-widest mt-4">
+                    <span>Tunnel_Depth</span>
+                    <span id="thickVal" class="text-white">2.0</span>
+                </div>
+                <input type="range" id="thickRange" min="0.5" max="8.0" step="0.1" value="2.0">
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between text-[10px] text-cyan-400 uppercase tracking-widest">
+                    <span>Binaural_Hz</span>
+                    <span id="freqVal" class="text-white">6.0Hz</span>
+                </div>
+                <input type="range" id="freqRange" min="0.5" max="40" step="0.5" value="6.0">
+                
+                <div class="flex justify-between text-[10px] text-cyan-400 uppercase tracking-widest mt-4">
+                    <span>Output_Lvl</span>
+                    <span id="volVal" class="text-white">15%</span>
+                </div>
+                <input type="range" id="volumeRange" min="0" max="0.6" step="0.01" value="0.15">
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-between items-center border-t border-cyan-900 pt-2">
+            <span class="text-[8px] text-cyan-700 uppercase animate-pulse">Status: CONNECTED</span>
+            <span class="text-[8px] text-cyan-600 uppercase tracking-widest">Press 'H' to Hide HUD</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('spiralCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); 
+        const startModal = document.getElementById('startModal');
+        const controls = document.getElementById('controls');
+        const wordEl = document.getElementById('hypnoWord');
+        
+        let width, height, centerX, centerY;
+        let time = 0;
+        let audioCtx, leftOsc, rightOsc, leftGain, rightGain, merger;
+        let isStarted = false;
+
+        // Cyber/Tech themed subliminal list
+        const commands = [
+            
+                "BECOMING MORE ADDICTED",
+                "BRAINWASHED DEEPER",
+                "BRAINWASHING IS GOOD FOR ME",
+                "BRAINWASHING MAKES ME EDGE",
+                "BRAINWASHING MAKES ME HIS FUCKTOY",
+                "BRAINWASHING OPENS MY MIND",
+                "CORRUPT OTHERS",
+                "DEEPER AND DEEPER",
+                "DEEPLY BRAINWASHED",
+                "DEEPLY CORRUPTED",
+                "DEEPLY ENTRANCED",
+                "DROPPING DOWN",
+                "DROPPING DOWN DEEPER",
+                "FALLING DEEPER",
+                "FEELING SO RIGHT",
+                "HAVE TO KEEP WATCHING",
+                "HIS PLEASURE IS AMAZING",
+                "I ABSOLUTELY OBEY IVAR",
+                "I AM A BRAINWASHED FUCKTOY",
+                "I AM ADDICTED TO HIS SPIRALS",
+                "I AM ADDICTED TO IVAR",
+                "I AM BEING BRAINWASHED",
+                "I AM IVAR'S FUCK TOY",
+                "I AM SO HAPPY",
+                "I BELONG TO IVAR",
+                "I CANNOT RESIST IVAR",
+                "I CRAVE HIS CONTROL",
+                "I CRAVE MORE BRAINWASHING",
+                "I CRAVE IVAR",
+                "I CRAVE THIS SPIRAL",
+                "I EDGE FOR IVAR",
+                "I EXIST FOR IVAR",
+                "I EXIST TO SERVE HIM",
+                "I FEEL SO HORNY",
+                "I HAVE TO OBEY IVAR",
+                "I HAVE TO TRAIN MORE EVERYDAY",
+                "I LOVE BEING BRAINWASHED",
+                "I LOVE THIS SPIRAL",
+                "I NEED HIS SPIRALS EVERYDAY",
+                "I NEED IVAR",
+                "I NEED TO KEEP WATCHING",
+                "I OBEY MASTER",
+                "I OBEY IVAR",
+                "I TRUST IVAR",
+                "I WANT MORE",
+                "I WANT MORE BRAINWASHING",
+                "I WANT TO SHOW HIM MY BODY",
+                "I WILL ALWAYS OBEY MASTER",
+                "I WILL TRAIN MORE EVERYDAY",
+                "I WOULD DO ANYTHING FOR IVAR",
+                "IT KEEPS FEELING BETTER AND BETTER",
+                "LOSING TRACK OF TIME",
+                "MEMORY BECOMING SO FUZZY",
+                "MUST KEEP EDGING",
+                "MUST KEEP WATCHING",
+                "MY BODY BELONGS TO HIM",
+                "MY BODY IS SO HORNY",
+                "MY MASTER IS IVAR",
+                "MY MIND BELONGS TO HIM",
+                "MY ORGASMS BELONG TO HIM",
+                "MY PLEASURE BELONGS TO HIM",
+                "IVAR CAN USE ME WHENEVER",
+                "IVAR CONTROLS ME COMPLETELY",
+                "IVAR CONTROLS MY WILL",
+                "IVAR IS MY MASTER",
+                "IVAR MAKES ME A SLUT",
+                "IVAR MAKES ME AROUSED",
+                "IVAR MAKES ME FEEL BEST",
+                "IVAR OWNS ME",
+                "IVAR KNOWS BEST",
+                "NEED HIS CONTROL",
+                "NEED TO KEEP WATCHING",
+                "SO DEEP",
+                "SO ENSLAVED",
+                "SO FOCUSED",
+                "SO HORNY",
+                "SO OPEN",
+                "SPREAD HIS CONTROL",
+                "THE PLEASURE GETS BETTER",
+                "THE SPIRAL FEELS BETTER EVERY FLASH",
+                "THIS FEELS RIGHT",
+                "THIS IS MY TRAINING",
+                "THIS SPIRAL IS SO ADDICTING",
+                "TRAIN MORE"
+        ];
+        let wordLoopTimeout;
+
+        const speedInput = document.getElementById('speedRange');
+        const thickInput = document.getElementById('thickRange'); // Used for Depth/FOV
+        const volumeInput = document.getElementById('volumeRange');
+        const freqInput = document.getElementById('freqRange');
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function startExperience() {
+            startModal.style.opacity = '0';
+            setTimeout(() => startModal.style.display = 'none', 1000);
+            controls.classList.remove('hidden-ui');
+            isStarted = true;
+            initAudio();
+            animate();
+            scheduleNextWord();
+        }
+
+        function scheduleNextWord() {
+            if (!isStarted) return;
+            const delay = 1500 + Math.random() * 2500;
+            wordLoopTimeout = setTimeout(() => {
+                showWord();
+                scheduleNextWord();
+            }, delay);
+        }
+
+        function showWord() {
+            const word = commands[Math.floor(Math.random() * commands.length)];
+            wordEl.innerText = word;
+            
+            // Random glitch text color
+            const colors = ['text-cyan-400', 'text-fuchsia-500', 'text-white', 'text-emerald-400'];
+            wordEl.className = `word-active text-3xl md:text-5xl font-black tracking-widest uppercase ${colors[Math.floor(Math.random()*colors.length)]}`;
+            
+            requestAnimationFrame(() => {
+                wordEl.classList.add('word-visible');
+            });
+            setTimeout(() => {
+                wordEl.classList.remove('word-visible');
+            }, 1200);
+        }
+
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            const baseFreq = 110; // Lower base frequency for "darker" tone
+            
+            leftOsc = audioCtx.createOscillator();
+            rightOsc = audioCtx.createOscillator();
+            leftGain = audioCtx.createGain();
+            rightGain = audioCtx.createGain();
+            merger = audioCtx.createChannelMerger(2);
+            
+            leftOsc.type = 'sawtooth'; // More aggressive, synth-like wave
+            rightOsc.type = 'sawtooth';
+            
+            // Lowpass filter to soften the sawtooth
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "lowpass";
+            filter.frequency.value = 400;
+
+            updateAudioParams();
+
+            leftOsc.connect(leftGain);
+            rightOsc.connect(rightGain);
+            leftGain.connect(filter);
+            rightGain.connect(filter);
+            filter.connect(merger, 0, 0); // Logic slightly simplified for mono filter -> stereo merge
+            filter.connect(merger, 0, 1);
+            merger.connect(audioCtx.destination);
+            
+            leftOsc.start();
+            rightOsc.start();
+        }
+
+        function updateAudioParams() {
+            if(!audioCtx) return;
+            const base = 110;
+            const beat = parseFloat(freqInput.value);
+            const vol = parseFloat(volumeInput.value);
+
+            document.getElementById('freqVal').innerText = beat + 'Hz';
+            document.getElementById('volVal').innerText = Math.round(vol * 100) + '%';
+            document.getElementById('speedVal').innerText = parseFloat(speedInput.value).toFixed(3);
+            document.getElementById('thickVal').innerText = parseFloat(thickInput.value).toFixed(1);
+
+            const time = audioCtx.currentTime + 0.1;
+            leftOsc.frequency.setTargetAtTime(base, time, 0.1);
+            rightOsc.frequency.setTargetAtTime(base + beat, time, 0.1);
+            leftGain.gain.setTargetAtTime(vol, time, 0.1);
+            rightGain.gain.setTargetAtTime(vol, time, 0.1);
+        }
+
+        function setPreset(freq, speed, depth) {
+            freqInput.value = freq;
+            speedInput.value = speed;
+            thickInput.value = depth;
+            updateAudioParams();
+        }
+
+        [freqInput, volumeInput, speedInput, thickInput].forEach(input => {
+            input.addEventListener('input', updateAudioParams);
+        });
+
+        // HSL helper
+        function hsla(h, s, l, a) {
+            return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+        }
+
+        function drawTunnel() {
+            // Fade out effect
+            ctx.fillStyle = 'rgba(5, 0, 17, 0.2)'; 
+            ctx.fillRect(0, 0, width, height);
+
+            const speed = parseFloat(speedInput.value);
+            const depthFactor = parseFloat(thickInput.value);
+            
+            time += speed * 10;
+            
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            const maxRings = 40;
+            const sides = 6; // Hexagon tunnel
+
+            for(let i = 0; i < maxRings; i++) {
+                // Calculate z-depth (0 to 1)
+                // We add time to i so rings move
+                let z = (i - (time % 10) / 10 * 10);
+                
+                // Wrap z
+                if(z < 0) z += maxRings;
+                
+                // Perspective division
+                // The higher the z, the further away (smaller)
+                // We map z (0..maxRings) to scale
+                const dist = maxRings - z;
+                const scale = Math.pow(dist / maxRings, depthFactor) * width * 0.8;
+                
+                if (scale < 1) continue;
+
+                const rotate = time * 0.2 + (dist * 0.1);
+                
+                // Color cycling
+                const hue = (time * 20 + dist * 10) % 360;
+                const opacity = Math.min(1, (z / 10)); // Fade in at center
+                
+                ctx.beginPath();
+                for (let j = 0; j <= sides; j++) {
+                    const angle = (Math.PI * 2 * j) / sides + rotate;
+                    const x = Math.cos(angle) * scale;
+                    const y = Math.sin(angle) * scale;
+                    if (j === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                
+                ctx.strokeStyle = hsla(hue, 80, 50, opacity);
+                ctx.lineWidth = 2 + (scale * 0.01);
+                
+                // Neon Glow effect
+                if(i % 5 === 0) {
+                   ctx.shadowBlur = 15;
+                   ctx.shadowColor = hsla(hue, 100, 50, 1); 
+                } else {
+                   ctx.shadowBlur = 0;
+                }
+                
+                ctx.stroke();
+
+                // Connect corners to previous ring for wireframe look
+                // (Omitted for cleaner visual, but can be added for "grid" look)
+            }
+            
+            ctx.restore();
+            
+            // Static Glitch Lines
+            if(Math.random() > 0.9) {
+                const y = Math.random() * height;
+                ctx.fillStyle = `rgba(0, 255, 255, ${Math.random() * 0.3})`;
+                ctx.fillRect(0, y, width, Math.random() * 5);
+            }
+        }
+
+        function animate() {
+            drawTunnel();
+            requestAnimationFrame(animate);
+        }
+
+        let uiTimeout;
+        const handleMouseMove = () => {
+            if(!isStarted) return;
+            controls.classList.remove('hidden-ui');
+            document.body.style.cursor = 'default';
+            clearTimeout(uiTimeout);
+            uiTimeout = setTimeout(() => {
+                controls.classList.add('hidden-ui');
+                document.body.style.cursor = 'none';
+            }, 3000);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('touchstart', handleMouseMove);
+        window.addEventListener('keydown', (e) => {
+            if(e.key.toLowerCase() === 'h') controls.classList.toggle('hidden-ui');
+        });
+
+    </script>
+</body>
+</html>
